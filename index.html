@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Advanced Weather Dashboard with real-time forecasts and offline support" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  
+  <title>Atmosphere | Advanced Weather</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://api.openweathermap.org" />
+  <link rel="preconnect" href="https://openweathermap.org" />
+  
+  <script>
+    // Critical: Register Service Worker immediately
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("service-worker.js")
+        .then(reg => console.log("SW registered:", reg.scope))
+        .catch(err => console.error("SW registration failed:", err));
+    }
+  </script>
+</head>
+<body>
+  <!-- Offline Indicator -->
+  <div id="offline-bar" class="offline-indicator" hidden>
+    <span class="offline-icon">📡</span>
+    <span>You're offline. Using cached data.</span>
+    <button onclick="window.app.retryConnection()">Retry</button>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <header class="app-header">
+    <nav class="main-nav">
+      <div class="nav-brand">
+        <div class="logo" onclick="window.app.loadHomeCity()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <span>Atmosphere</span>
+        </div>
+      </div>
+
+      <div class="search-container">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input 
+            type="text" 
+            id="searchlocation" 
+            placeholder="Search city... (Press / to focus)" 
+            autocomplete="off"
+            aria-label="Search for a city"
+          />
+          <button class="search-action" onclick="window.app.search()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+        <div id="search-suggestions" class="search-suggestions" hidden></div>
+      </div>
+
+      <div class="nav-actions">
+        <button 
+          id="locate-btn" 
+          class="icon-btn" 
+          onclick="window.app.getCurrentLocation()"
+          title="Use my location"
+          aria-label="Get current location"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>
+          </svg>
+        </button>
+
+        <button id="installBtn" class="install-btn" style="display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+          </svg>
+          Install
+        </button>
+
+        <div class="user-section" id="user-section">
+          <button 
+            id="user-badge" 
+            class="user-badge" 
+            onclick="window.app.toggleUserMenu()"
+            aria-expanded="false"
+          >
+            <span id="user-initial">?</span>
+          </button>
+          <div id="user-popup" class="user-popup" hidden>
+            <div class="user-popup-header">
+              <strong id="popup-name">User</strong>
+              <span id="popup-email">email@example.com</span>
+            </div>
+            <div class="user-popup-actions">
+              <button onclick="window.app.showFavorites()">
+                <span>⭐</span> Favorites
+              </button>
+              <button onclick="window.app.toggleNotifications()">
+                <span>🔔</span> Notifications
+              </button>
+              <button onclick="window.app.signout()" class="signout-btn">
+                <span>🚪</span> Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button id="signupBtn" onclick="window.app.goToSignup()" class="auth-btn">Sign Up</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app-main">
+    <aside id="favorites-sidebar" class="favorites-sidebar">
+      <div class="sidebar-header">
+        <h3>Saved Locations</h3>
+        <button class="close-sidebar" onclick="window.app.toggleSidebar()">×</button>
+      </div>
+      <div id="favorites-list" class="favorites-list"></div>
+    </aside>
+
+    <div class="weather-container" id="weather-container">
+      <!-- Initial loading state -->
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading weather data...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal for expanded details -->
+  <div id="modal-overlay" class="modal-overlay" onclick="window.app.closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="modal-title">Details</h3>
+        <button class="modal-close" onclick="window.app.closeModal()">×</button>
+      </div>
+      <div id="modal-content" class="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
